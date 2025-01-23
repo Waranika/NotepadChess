@@ -2,12 +2,15 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import chess
 import chess.engine
+import threading
+import time
+
 
 
 class NotepadApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Notepad App with Chess")
+        self.root.title("NormalNotepad")
         self.root.geometry("800x600")
 
         # Create Text Area
@@ -49,6 +52,7 @@ class NotepadApp:
         # Help Menu
         help_menu = tk.Menu(self.menu_bar, tearoff=0)
         help_menu.add_command(label="About", command=self.show_about)
+        help_menu.add_command(label="Show Board", command=self.show_board)
         self.menu_bar.add_cascade(label="Help", menu=help_menu)
 
         # Track current file
@@ -56,7 +60,7 @@ class NotepadApp:
 
         # Initialize chess board and engine
         self.board = chess.Board()
-        self.engine = chess.engine.SimpleEngine.popen_uci(r"<your path to stockfish>")  # Ensure you have Stockfish installed
+        self.engine = chess.engine.SimpleEngine.popen_uci(r"C:\Users\kizer\stockfish\stockfish-windows-x86-64-avx2.exe")  # Ensure you have Stockfish installed
 
     def new_file(self):
         self.text_area.delete(1.0, tk.END)
@@ -130,8 +134,36 @@ class NotepadApp:
 
             '''   
         except ValueError:
-            self.text_area.insert(tk.END, "\nInvalid input! Please type a valid chess move (e.g., e2e4).\n")
-        return "break"
+            pass
+        return 
+    
+    def show_board(self):
+        board_window = tk.Toplevel(self.root)
+        board_window.title("Chess Board")
+        board_label = tk.Label(board_window, font=("Courier", 16), justify=tk.LEFT)
+
+        def render_board():
+            unicode_board = ""
+            for row in str(self.board).split("\n"):
+                unicode_row = row.replace("P", " ♙ ").replace("p", " ♟ ")
+                unicode_row = unicode_row.replace("R", " ♖ ").replace("r", " ♜ ")
+                unicode_row = unicode_row.replace("N", " ♘ ").replace("n", " ♞ ")
+                unicode_row = unicode_row.replace("B", " ♗ ").replace("b", " ♝ ")
+                unicode_row = unicode_row.replace("Q", " ♕ ").replace("q", " ♛ ")
+                unicode_row = unicode_row.replace("K", " ♔ ").replace("k", " ♚ ")
+                unicode_row = unicode_row.replace(".", "·   ")  
+                unicode_board += unicode_row + "\n"
+            board_label.config(text=unicode_board, font=("Courier", 20))
+
+        render_board()
+        board_label.pack(padx=10, pady=10)
+
+        # Close the board after 10 seconds
+        def close_board():
+            time.sleep(10)
+            board_window.destroy()
+
+        threading.Thread(target=close_board, daemon=True).start()
 
 
 
