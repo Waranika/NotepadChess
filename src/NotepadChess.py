@@ -56,7 +56,7 @@ class NotepadApp:
 
         # Initialize chess board and engine
         self.board = chess.Board()
-        self.engine = chess.engine.SimpleEngine.popen_uci(r"C:\Users\kizer\stockfish\stockfish-windows-x86-64-avx2.exe")  # Ensure you have Stockfish installed
+        self.engine = chess.engine.SimpleEngine.popen_uci(r"<your path to stockfish>")  # Ensure you have Stockfish installed
 
     def new_file(self):
         self.text_area.delete(1.0, tk.END)
