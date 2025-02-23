@@ -4,6 +4,11 @@ import chess
 import chess.engine
 import threading
 import time
+import os
+import signal
+from PIL import Image, ImageTk
+import sys
+import subprocess
 
 
 
@@ -13,6 +18,9 @@ class NotepadApp:
         self.root.title("NormalNotepad")
         self.root.geometry("800x600")
 
+        # Bind the window close button (X) to exit_app()
+        self.root.protocol("WM_DELETE_WINDOW", self.exit_app)
+        
         # Create Text Area
         self.text_area = tk.Text(self.root, wrap='word', undo=True)
         self.text_area.pack(fill=tk.BOTH, expand=True)
@@ -52,7 +60,7 @@ class NotepadApp:
         # Help Menu
         help_menu = tk.Menu(self.menu_bar, tearoff=0)
         help_menu.add_command(label="About", command=self.show_about)
-        help_menu.add_command(label="Show Board", command=self.show_board)
+        help_menu.add_command(label="Show Board", command=self.show_board_canvas)
         self.menu_bar.add_cascade(label="Help", menu=help_menu)
 
         # Track current file
@@ -60,7 +68,26 @@ class NotepadApp:
 
         # Initialize chess board and engine
         self.board = chess.Board()
-        self.engine = chess.engine.SimpleEngine.popen_uci(r"C:\Users\kizer\stockfish\stockfish-windows-x86-64-avx2.exe")  # Ensure you have Stockfish installed
+        # Figure out the base path
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(__file__)
+
+        # Path to Stockfish engine
+        engine_path = os.path.join(base_path, "stockfish", "stockfish-windows-x86-64-avx2.exe")
+
+        # Only define creationflags on Windows
+        creationflags = 0
+        if os.name == "nt":
+            creationflags = subprocess.CREATE_NO_WINDOW
+
+        # Launch the engine
+        self.engine = chess.engine.SimpleEngine.popen_uci(engine_path , creationflags=creationflags)
+
+         # Pre-load images so they stay in memory
+        self.piece_images = {}
+        self.load_piece_images()
 
     def new_file(self):
         self.text_area.delete(1.0, tk.END)
@@ -137,28 +164,89 @@ class NotepadApp:
             pass
         return 
     
-    def show_board(self):
+    def load_piece_images(self):
+        """
+        Loads each piece image at a consistent size.
+        For an 8×8 board with e.g. 60px squares, 50-60px is a good piece size.
+        """
+        square_size = 60
+        # Mapping from piece symbol to image filename
+        # uppercase = White pieces, lowercase = Black pieces
+        piece_filenames = {
+            'P': 'wP.png', 'R': 'wR.png', 'N': 'wN.png', 'B': 'wB.png',
+            'Q': 'wQ.png', 'K': 'wK.png',
+            'p': 'bP.png', 'r': 'bR.png', 'n': 'bN.png', 'b': 'bB.png',
+            'q': 'bQ.png', 'k': 'bK.png',
+        }
+
+       # Use the same base_path logic you used for the Stockfish engine
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(__file__)
+
+        # Construct the path to the images folder under base_path
+        images_folder = os.path.join(base_path, 'images')
+        
+        for symbol, filename in piece_filenames.items():
+            image_file_path = os.path.join(images_folder, filename)
+            img = Image.open(image_file_path).convert("RGBA")
+            img = img.resize((square_size, square_size), Image.ANTIALIAS)
+            self.piece_images[symbol] = ImageTk.PhotoImage(img)
+
+
+    def show_board_canvas(self):
+        """
+        Displays the chessboard on a Canvas widget in a new window,
+        coloring squares in a checker pattern and drawing piece images.
+        """
         board_window = tk.Toplevel(self.root)
-        board_window.title("Chess Board")
-        board_label = tk.Label(board_window, font=("Courier", 16), justify=tk.LEFT)
+        board_window.title("Chess Board (Canvas)")
 
-        def render_board():
-            unicode_board = ""
-            for row in str(self.board).split("\n"):
-                unicode_row = row.replace("P", " ♙ ").replace("p", " ♟ ")
-                unicode_row = unicode_row.replace("R", " ♖ ").replace("r", " ♜ ")
-                unicode_row = unicode_row.replace("N", " ♘ ").replace("n", " ♞ ")
-                unicode_row = unicode_row.replace("B", " ♗ ").replace("b", " ♝ ")
-                unicode_row = unicode_row.replace("Q", " ♕ ").replace("q", " ♛ ")
-                unicode_row = unicode_row.replace("K", " ♔ ").replace("k", " ♚ ")
-                unicode_row = unicode_row.replace(".", "·   ")  
-                unicode_board += unicode_row + "\n"
-            board_label.config(text=unicode_board, font=("Courier", 20))
+        square_size = 60
+        canvas_size = square_size * 8
+        canvas = tk.Canvas(board_window, width=canvas_size, height=canvas_size)
+        canvas.pack()
 
-        render_board()
-        board_label.pack(padx=10, pady=10)
+        # Typical "light wood" / "dark wood" colors from popular chess websites
+        light_color = "#F0D9B5"
+        dark_color = "#B58863"
 
-        # Close the board after 10 seconds
+        # Draw checkerboard squares
+        for row in range(8):
+            for col in range(8):
+                x1 = col * square_size
+                y1 = row * square_size
+                x2 = x1 + square_size
+                y2 = y1 + square_size
+                # Alternate square color
+                if (row + col) % 2 == 0:
+                    fill_color = light_color
+                else:
+                    fill_color = dark_color
+                # Draw the square (no outline)
+                canvas.create_rectangle(x1, y1, x2, y2, fill=fill_color, outline="")
+        # Place the chess pieces according to self.board
+        # Note: python-chess squares go from 0..63, left-to-right, bottom-to-top
+        # We want row=0 at the top in the canvas, so row in canvas = 7 - rank
+        for square in chess.SQUARES:
+            piece = self.board.piece_at(square)
+            if piece is not None:
+                # Convert square index to (row, col)
+                rank = square // 8
+                file = square % 8
+                row = 7 - rank         # row 0 at top
+                col = file             # col 0 at left
+
+                x = col * square_size
+                y = row * square_size
+                symbol = piece.symbol()  # e.g. 'P', 'p', 'R', etc.
+
+                # Use the pre-loaded piece image
+                if symbol in self.piece_images:
+                    canvas.create_image(x, y, image=self.piece_images[symbol], anchor="nw")
+
+        # Optionally close board after 10 seconds in a background thread
         def close_board():
             time.sleep(10)
             board_window.destroy()
@@ -170,4 +258,4 @@ class NotepadApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = NotepadApp(root)
-    root.mainloop()
+    root.mainloop() 
