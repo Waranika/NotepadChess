@@ -1,5 +1,7 @@
 # Notepad Chess
+![image](https://github.com/user-attachments/assets/cc84e111-8bd2-49c2-a06e-b496e04ad2a8)
 
+https://waranika.itch.io/notepadchess
 **Description:**
 A fun project to play chess against a CPU in a minimal and concealed way. This application combines a basic text editor with chess functionality, allowing you to take notes while casually playing chess in the background.
 
